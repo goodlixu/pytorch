@@ -3,6 +3,7 @@
 #include <ATen/core/Formatting.h>
 #include <ATen/core/function.h>
 #include <ATen/core/jit_type.h>
+#include <ATen/ThreadLocalState.h>
 #include <c10/util/StringUtil.h>
 #include <cmath>
 
@@ -629,6 +630,17 @@ getClassConverter() {
       classConverter;
   return classConverter;
 }
+
+template <typename T>
+TORCH_API std::function<T(void)> wrapPropagateTLSState(std::function<T(void)> callback) {
+  return [tls_state = at::ThreadLocalState(), callback = std::move(callback)]() {
+    at::ThreadLocalStateGuard g(tls_state);
+    // Propagate value returned by callback().
+    return callback();
+  };
+}
+template std::function<c10::IValue(void)> at::wrapPropagateTLSState<c10::IValue>(std::function<c10::IValue(void)> callback);
+template std::function<void(void)> at::wrapPropagateTLSState<void>(std::function<void(void)> callback);
 
 CAFFE2_API intrusive_ptr<ivalue::Future> collectAll(
     List<intrusive_ptr<ivalue::Future>> srcs) {
